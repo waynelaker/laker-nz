@@ -75,7 +75,7 @@
 	</head>
 	<body>
 		<main>
-			<p id="greeting" class="small" aria-live="polite">Good day.</p>
+			<p id="message" class="small" aria-live="polite"></p>
 		</main>
 		<div id="datetime" class="small" aria-live="polite" aria-atomic="false" role="status"></div> 
 		<script>
@@ -134,9 +134,9 @@
 
 				/* Timings (milliseconds) */
 				var fadeMs = 2000;            // fade in/out duration (2s)
-				var initialGreetingMs = 10000; // show greeting for 10s
+				var initialGreetingMs = 5000; // show greeting for 10s
 				var betweenPauseMs = 5000;     // wait between fade out and next fade in (5s)
-				var quoteDisplayMs = 20000;    // show quote fully for 20s
+				var quoteDisplayMs = 10000;    // show quote fully for 20s
 
 				var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 				if (prefersReduced) {
