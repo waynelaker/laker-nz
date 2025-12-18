@@ -12,6 +12,7 @@
 				--text: #0b1220;
 				--muted: #5b646f;
 				--accent: #1b6cff;
+				--fade-duration: 2000ms; /* fade duration for message transitions */
 			}
 
 			* { box-sizing: border-box; }
@@ -48,6 +49,19 @@
 				font-size: 0.95rem;
 			}
 
+			/* Transition helpers for message and datetime */
+			.visible { opacity: 1; transform: none; transition: opacity var(--fade-duration) ease, transform var(--fade-duration) ease; }
+			.hidden { opacity: 0; transform: translateY(8px) scale(.995); transition: opacity var(--fade-duration) ease, transform var(--fade-duration) ease; pointer-events: none; }
+
+			#messageArea { margin-top: 1.5rem; min-height: 2.2rem; display:flex; align-items:center; justify-content:center; }
+			#message { font-style: italic; color: var(--muted); max-width: 60ch; margin-left: auto; margin-right: auto; }
+
+			#datetime { position: fixed; left: 0; right: 0; bottom: 0; text-align: center; padding: 0.5rem 0; background: rgba(255,255,255,0.6); color: var(--muted); font-size: 0.9rem; backdrop-filter: blur(6px); pointer-events: none; }
+
+			@media (prefers-reduced-motion: reduce) {
+				.visible, .hidden { transition: none !important; }
+			}
+
 			@media (prefers-reduced-motion: no-preference) {
 				h1 { animation: fadeIn 1s ease both; transform-origin: center; }
 				.small { animation: fadeIn 5s ease both; }
@@ -61,20 +75,136 @@
 	</head>
 	<body>
 		<main>
-			<h1>Laker</h1>
-			<p id="greeting" class="small" aria-live="polite">Good day.</p>
+			<div id="messageArea">
+				<p id="message" class="small visible" aria-live="polite" aria-atomic="true">Good day.</p>
+			</div>
 		</main>
+		<div id="datetime" class="small" aria-live="polite" aria-atomic="false" role="status"></div> 
 		<script>
 			(function () {
+				var messageEl = document.getElementById('message');
+				var datetimeEl = document.getElementById('datetime');
+
 				function greetingForHour(h) {
 					if (h < 12) return 'Good morning.';
 					if (h < 18) return 'Good afternoon.';
 					return 'Good evening.';
 				}
-				var el = document.getElementById('greeting');
-				if (el) {
-					try { el.textContent = greetingForHour(new Date().getHours()); } catch (e) { /* noop */ }
+
+				if (messageEl) {
+					messageEl.textContent = greetingForHour(new Date().getHours());
+					if (!messageEl.classList.contains('visible') && !messageEl.classList.contains('hidden')) {
+						messageEl.classList.add('visible');
+					}
 				}
+
+				function show(el) {
+					if (!el || !el.classList) return;
+					el.classList.remove('hidden');
+					// force a reflow so the following add('visible') reliably triggers the transition
+					void el.offsetWidth;
+					el.classList.add('visible');
+				}
+				function hide(el) {
+					if (!el || !el.classList) return;
+					el.classList.remove('visible');
+					// force a reflow so the following add('hidden') reliably triggers the transition
+					void el.offsetWidth;
+					el.classList.add('hidden');
+				}
+
+				var localQuotes = [
+					"Simplicity is the ultimate sophistication. - Leonardo da Vinci",
+					"The secret of getting ahead is getting started. - Mark Twain",
+					"Quality is not an act, it is a habit. - Aristotle",
+					"Design is intelligence made visible. - Alina Wheeler",
+					"Progress, not perfection. - Unknown",
+					"Nothing happens unless first we dream. - Carl Sandburg",
+					"Well begun is half done. - Aristotle",
+					"If you don't like something, change it. If you can't change it, change your attitude. - Maya Angelou",
+					"If opportunity doesn't knock, build a door. - Milton Berle",
+					"Strive not to be a success, but rather to be of value. - Albert Einstein",
+					"It does not matter how slowly you go so long as you do not stop. - Confucius",
+					"Life is what happens to you while you're busy making other plans. - John Lennon",
+					"We become what we think about. - Earl Nightingale",
+					"If you concentrate on what you don't have, you will never, ever have enough. - Oprah Winfrey",
+					"If you are going through hell, keep going. - Winston Churchill",
+					"The most difficult thing is the decision to act, the rest is merely tenacity. - Amelia Earhart.",
+				];
+
+				function pickRandomLocal() { return localQuotes[Math.floor(Math.random() * localQuotes.length)]; }
+
+				/* Timings (milliseconds) */
+				var fadeMs = 2000;            // fade in/out duration (2s)
+				var initialGreetingMs = 10000; // show greeting for 10s
+				var betweenPauseMs = 5000;     // wait between fade out and next fade in (5s)
+				var quoteDisplayMs = 20000;    // show quote fully for 20s
+
+				var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+				if (prefersReduced) {
+					fadeMs = 0; // eliminate fades
+				}
+
+				function showNextQuote() {
+					if (!messageEl) return;
+					var q = pickRandomLocal();
+
+					// If reduced-motion is preferred, simply swap text and schedule next
+					if (prefersReduced) {
+						messageEl.textContent = q;
+						show(messageEl);
+						setTimeout(function () {
+							hide(messageEl);
+						}, quoteDisplayMs);
+						setTimeout(function () { showNextQuote(); }, quoteDisplayMs + betweenPauseMs);
+						return;
+					}
+
+					// Ensure element is hidden before updating text so the fade-in runs
+					hide(messageEl);
+					// Small delay to ensure the 'hidden' state is applied by the browser
+					setTimeout(function () {
+						// update text while hidden
+						messageEl.textContent = q;
+						// force reflow
+						void messageEl.offsetWidth;
+						// now show (this will transition opacity using the CSS variable)
+						show(messageEl);
+
+						// After fade-in completes, keep visible for quoteDisplayMs
+						var timeUntilHide = fadeMs + quoteDisplayMs;
+						setTimeout(function () {
+							hide(messageEl); // fade out over fadeMs
+						}, timeUntilHide);
+
+						// Schedule next quote: after fade-in + visible + fade-out + betweenPause
+						setTimeout(function () { showNextQuote(); }, timeUntilHide + fadeMs + betweenPauseMs);
+					}, 20);
+				}
+
+				// Start sequence: show greeting for initialGreetingMs, fade out over fadeMs, wait betweenPauseMs then show first quote
+				setTimeout(function () {
+					hide(messageEl); // fade out over fadeMs
+					setTimeout(function () {
+						showNextQuote();
+					}, fadeMs + betweenPauseMs);
+				}, initialGreetingMs);
+
+				function updateDateTime() {
+					var d = new Date();
+					var day = d.toLocaleDateString(undefined, { weekday: 'long' });
+					var date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+					var time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+					if (datetimeEl) datetimeEl.textContent = day + ' · ' + date + ' · ' + time;
+				}
+				updateDateTime();
+				setInterval(updateDateTime, 1000);
+
+				if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+					if (messageEl) { messageEl.style.transition = 'none'; }
+					if (datetimeEl) { datetimeEl.style.transition = 'none'; }
+				}
+
 			})();
 		</script>
 	</body>
